@@ -85,15 +85,11 @@ async def handle_command_text(websocket: WebSocket, text: str):
     command = parse_command(text)
 
     if command is None:
-        active = claude_manager.get_active_session()
-        if active:
-            command = parse_command(text, require_wake_word=False)
-        else:
-            await websocket.send_json({
-                "type": "info",
-                "message": "No wake word detected and no active session",
-            })
-            return
+        await websocket.send_json({
+            "type": "info",
+            "message": "No wake word detected",
+        })
+        return
 
     await websocket.send_json({
         "type": "command",

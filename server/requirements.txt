@@ -4,3 +4,5 @@ websockets>=12.0
 faster-whisper>=1.0.0
 python-Levenshtein>=0.25.0
 python-multipart>=0.0.9
+sounddevice>=0.5.0
+numpy>=1.26.0

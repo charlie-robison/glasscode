@@ -19,6 +19,8 @@ class Config:
     wake_words: list[str] = field(default_factory=lambda: [
         "hey claude", "claude", "hey clod", "clod",
         "hey clawed", "clawed", "hey cloud", "cloud",
+        "hey clawd", "clawd", "hey klaud", "klaud",
+        "hey clodd", "clodd", "hey claud", "claud",
     ])
 
     # STT

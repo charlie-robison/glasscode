@@ -36,16 +36,34 @@ INTENT_PATTERNS = [
 ]
 
 
+def _normalize(text: str) -> str:
+    """Strip punctuation and extra whitespace for matching."""
+    return re.sub(r"[^\w\s]", "", text.lower()).strip()
+
+
 def strip_wake_word(text: str) -> Optional[str]:
     """Remove wake word from the beginning of text. Returns None if no wake word found."""
-    text_lower = text.lower().strip()
+    normalized = _normalize(text)
 
     # Sort wake words by length (longest first) to match greedily
     sorted_wake_words = sorted(config.wake_words, key=len, reverse=True)
 
     for wake in sorted_wake_words:
-        if text_lower.startswith(wake):
-            remainder = text[len(wake):].strip().lstrip(",").strip()
+        if normalized.startswith(wake):
+            # Find where the wake word ends in the original text
+            # Count how many real word characters we consumed
+            wake_words = wake.split()
+            pos = 0
+            for ww in wake_words:
+                # Skip to the next word in the original text
+                while pos < len(text) and not text[pos].isalnum():
+                    pos += 1
+                # Skip past this word
+                word_start = pos
+                while pos < len(text) and text[pos].isalnum():
+                    pos += 1
+            # pos is now past the wake word in the original text
+            remainder = text[pos:].strip().lstrip(".,!?:;").strip()
             return remainder
 
     return None
