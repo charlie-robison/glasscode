@@ -24,6 +24,8 @@ class ClaudeSession:
     tmux_session: str  # tmux session name
     status: SessionStatus = SessionStatus.RUNNING
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    remote_mode: bool = False
+    claude_resume_id: str | None = None  # Claude CLI session UUID for --resume
 
     def to_dict(self) -> dict:
         return {
@@ -32,6 +34,7 @@ class ClaudeSession:
             "status": self.status.value,
             "created_at": self.created_at,
             "project_name": self.project_path.rstrip("/").split("/")[-1],
+            "remote_mode": self.remote_mode,
         }
 
 
@@ -130,6 +133,22 @@ class ClaudeManager:
             self.active_session_id = session_id
             return self.sessions[session_id]
         return None
+
+    def enable_remote(self, session_id: str) -> bool:
+        """Enable remote control mode on a session."""
+        session = self.sessions.get(session_id)
+        if session:
+            session.remote_mode = True
+            return True
+        return False
+
+    def disable_remote(self, session_id: str) -> bool:
+        """Disable remote control mode."""
+        session = self.sessions.get(session_id)
+        if session:
+            session.remote_mode = False
+            return True
+        return False
 
 
 # Singleton

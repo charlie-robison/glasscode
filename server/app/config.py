@@ -33,5 +33,8 @@ class Config:
     # Claude CLI
     claude_binary: str = "claude"
 
+    # Remote control
+    remote_timeout_seconds: int = 300  # 5 minute max per prompt
+
 
 config = Config()

@@ -211,10 +211,14 @@ async def run(server_url: str, device=None, threshold: float = 0.01, silence_ms:
 
 async def read_responses(ws, device=None, timeout: float = 60.0):
     """Read and display server responses, play TTS audio."""
+    got_result = False  # Track whether we've received a terminal event
+
     try:
         while True:
             try:
-                msg = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                # Use longer timeout when waiting for remote results
+                wait_timeout = 300.0 if not got_result else timeout
+                msg = await asyncio.wait_for(ws.recv(), timeout=wait_timeout)
             except asyncio.TimeoutError:
                 break
 
@@ -234,7 +238,35 @@ async def read_responses(ws, device=None, timeout: float = 60.0):
                 status(SYM_PROCESS, f"Terminal opened for {data.get('project', '?')}", newline=True)
 
             elif msg_type == "prompt_sent":
-                status(SYM_PROCESS, f"Sent to Claude", newline=True)
+                status(SYM_PROCESS, "Sent to Claude", newline=True)
+
+            # ── Remote control messages ──
+
+            elif msg_type == "remote_enabled":
+                status(SYM_PROCESS, f"Remote control ON for {data.get('project', '?')}", newline=True)
+
+            elif msg_type == "remote_disabled":
+                status(SYM_IDLE, "Back to normal mode", newline=True)
+
+            elif msg_type == "remote_working":
+                prompt = data.get("prompt", "?")
+                status(SYM_PROCESS, f"Claude is working: {prompt[:60]}...", newline=True)
+
+            elif msg_type == "remote_progress":
+                pass  # TTS audio follows automatically
+
+            elif msg_type == "remote_result":
+                summary = data.get("summary", "Done.")
+                files = data.get("files_created", []) + data.get("files_modified", [])
+                if files:
+                    names = ", ".join(f.split("/")[-1] for f in files[:4])
+                    status(SYM_PROCESS, f"Changed: {names}", newline=True)
+                duration = data.get("duration_ms")
+                if duration:
+                    status(SYM_PROCESS, f"Done in {duration / 1000:.1f}s", newline=True)
+                got_result = True  # Next TTS is the final one
+
+            # ── TTS audio ──
 
             elif msg_type == "tts_audio":
                 audio_b64 = data.get("audio", "")
@@ -244,11 +276,14 @@ async def read_responses(ws, device=None, timeout: float = 60.0):
                     await asyncio.get_event_loop().run_in_executor(
                         None, lambda: play_wav_bytes(wav_bytes, device)
                     )
-                break
+                # Only break on TTS after receiving a terminal event (result/error)
+                # or for non-remote flows (which don't set remote_working)
+                if got_result:
+                    break
 
             elif msg_type == "error":
                 status(SYM_PROCESS, f"Error: {data['message']}", newline=True)
-                break
+                got_result = True  # Break after next TTS, or now if no TTS follows
 
             elif msg_type == "status":
                 sessions = data.get("sessions", [])
@@ -258,8 +293,9 @@ async def read_responses(ws, device=None, timeout: float = 60.0):
                     status(SYM_IDLE, f"{len(sessions)} session(s):", newline=True)
                     for s in sessions:
                         name = s.get("project_name", "?")
+                        remote = " [remote]" if s.get("remote_mode") else ""
                         active = " *" if s["session_id"] == data.get("active_session_id") else ""
-                        print(f"       {s['session_id'][:8]} {name}: {s['status']}{active}")
+                        print(f"       {s['session_id'][:8]} {name}: {s['status']}{remote}{active}")
                 break
 
             elif msg_type in ("switched", "stopped", "info"):

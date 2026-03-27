@@ -12,18 +12,20 @@ Meta Glasses → iPhone (thin BT relay) → Mac (FastAPI server) → Claude Code
 
 - FastAPI server in `server/app/`
 - Run: `cd server && ./run.sh`
-- Uses `claude -p --output-format stream-json --bare` for CLI interaction
+- Normal mode: `tmux send-keys` to type prompts into interactive Claude terminal
+- Remote mode: `claude -p --output-format stream-json` subprocess with output capture
 - STT via faster-whisper (local, no API key)
 - TTS via macOS `say` command (zero cost)
 - WebSocket `/ws/voice` for audio relay from phone
-- WebSocket `/ws/session/{id}` for streaming Claude output
+- Remote control: captures Claude output, summarizes via TTS
 
 ## App (React Native Expo)
 
 - Expo app in `app/`
 - TypeScript, zero Swift code
-- Thin relay: captures glasses mic audio via expo-av, sends to server over WebSocket
-- Plays TTS audio back through glasses speakers
+- Lean pocket relay: VAD-only, no push-to-talk
+- Captures glasses mic audio via expo-av, sends to server over WebSocket
+- Plays TTS audio back through glasses speakers (queued for multi-message remote ops)
 - Background audio mode keeps relay active when phone is pocketed
 
 ## Commands
@@ -35,3 +37,5 @@ Meta Glasses → iPhone (thin BT relay) → Mac (FastAPI server) → Claude Code
 | "Hey Claude, switch to [project]" | Change active session |
 | "Hey Claude, status" | Read back session status |
 | "Hey Claude, stop" | Stop active session |
+| "Hey Claude, remote control" | Enter remote mode (output capture + TTS summaries) |
+| "Hey Claude, back to normal" | Exit remote mode |

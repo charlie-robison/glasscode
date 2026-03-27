@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "GlassCode Relay",
+    "slug": "glasscode-relay",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.glasscode.relay",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "GlassCode needs microphone access to relay voice commands from your Meta glasses to Claude Code."
+      }
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "GlassCode needs microphone access to relay voice commands from your Meta glasses to Claude Code."
+        }
+      ]
+    ]
+  }
+}

@@ -16,6 +16,8 @@ class Intent(str, Enum):
     SWITCH = "switch"
     STATUS = "status"
     STOP = "stop"
+    REMOTE_CONTROL = "remote_control"
+    EXIT_REMOTE = "exit_remote"
 
 
 @dataclass
@@ -28,6 +30,8 @@ class Command:
 
 # Intent keywords mapped to intents
 INTENT_PATTERNS = [
+    (r"\b(remote\s+control|go\s+remote|remote\s+mode)\b", Intent.REMOTE_CONTROL),
+    (r"\b(exit\s+remote|back\s+to\s+normal|leave\s+remote|local\s+mode)\b", Intent.EXIT_REMOTE),
     (r"\b(start\s+working\s+on|open|work\s+on)\b", Intent.OPEN_PROJECT),
     (r"\b(new\s+terminal\s+for|new\s+session\s+for|new\s+session)\b", Intent.NEW_SESSION),
     (r"\b(switch\s+to|go\s+to|change\s+to)\b", Intent.SWITCH),
@@ -86,9 +90,9 @@ def parse_command(text: str, require_wake_word: bool = True) -> Optional[Command
 
     remainder_lower = remainder.lower()
 
-    # Check for status/stop first (no project needed)
+    # Check for intents that don't need a project name
     for pattern, intent in INTENT_PATTERNS:
-        if intent in (Intent.STATUS, Intent.STOP):
+        if intent in (Intent.STATUS, Intent.STOP, Intent.REMOTE_CONTROL, Intent.EXIT_REMOTE):
             if re.search(pattern, remainder_lower):
                 return Command(intent=intent, project=None, prompt_text=remainder, raw_text=text)
 
