@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 def summarize_remote_result(session: RemoteSession) -> str:
-    """Build a concise spoken summary of what Claude did."""
+    """Build a concise spoken summary of what Claude did. Always ends with 'Done.'"""
     if session.is_error and session.error:
         msg = _truncate(session.error, 200)
         return f"I ran into a problem. {msg}"
@@ -19,7 +19,7 @@ def summarize_remote_result(session: RemoteSession) -> str:
 
     # If result_text is short and there are no file ops, use it directly
     if session.result_text and len(session.result_text) < 200 and not has_file_ops:
-        return session.result_text
+        return _ensure_done(session.result_text, session.pr_url)
 
     parts: list[str] = []
 
@@ -48,9 +48,27 @@ def summarize_remote_result(session: RemoteSession) -> str:
         if summary and summary not in " ".join(parts):
             parts.append(summary)
 
-    result = " ".join(parts) if parts else "Done."
+    # PR URL mention
+    if session.pr_url:
+        parts.append("A pull request was created.")
+    elif session.git_pushed:
+        parts.append("Changes were pushed to git.")
 
-    return _truncate(result, 350)
+    result = " ".join(parts) if parts else ""
+    result = _truncate(result, 320)
+
+    return _ensure_done(result, session.pr_url)
+
+
+def _ensure_done(text: str, pr_url: str | None = None) -> str:
+    """Make sure the summary ends with 'Claude Done.'"""
+    text = text.rstrip()
+    if not text:
+        return "Claude done."
+    if not text.endswith("."):
+        text += "."
+    text += " Claude done."
+    return text
 
 
 def _format_file_list(files: list[str], max_items: int = 3) -> str:

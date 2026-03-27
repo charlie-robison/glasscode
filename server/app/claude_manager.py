@@ -65,7 +65,17 @@ class ClaudeManager:
             "-s", tmux_name,         # session name
             "-c", project_path,      # working directory
             config.claude_binary,    # run claude interactively
+            "--worktree",
+            "--dangerously-skip-permissions",
         )
+
+        # Auto-accept the --dangerously-skip-permissions confirmation prompt
+        # Select "2. Yes, I accept" (Down arrow) then Enter
+        await asyncio.sleep(1)
+        await self._run("tmux", "send-keys", "-t", tmux_name, "Down", "")
+        await asyncio.sleep(0.2)
+        await self._run("tmux", "send-keys", "-t", tmux_name, "Enter", "")
+        await asyncio.sleep(1)
 
         # Open Terminal.app window attached to the tmux session
         attach_cmd = f"tmux attach -t {tmux_name}"

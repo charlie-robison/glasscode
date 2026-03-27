@@ -77,7 +77,12 @@ async def handle_transcribe(websocket: WebSocket, audio_buffer: bytearray):
         return
 
     try:
-        wav_bytes = pcm_to_wav(bytes(audio_buffer))
+        raw = bytes(audio_buffer)
+        # Phone sends WAV files, glass_client sends raw PCM — handle both
+        if raw[:4] == b"RIFF":
+            wav_bytes = raw
+        else:
+            wav_bytes = pcm_to_wav(raw)
         text = transcribe_audio(wav_bytes)
         await websocket.send_json({"type": "transcription", "text": text})
         if text:
@@ -134,17 +139,20 @@ async def send_tts(websocket: WebSocket, text: str):
 
 
 async def handle_open_project(websocket: WebSocket, command):
-    """Step 1: Open an interactive Claude session in a Terminal.app window."""
+    """Open a project session with remote mode auto-enabled."""
     if not command.project:
         msg = "I couldn't find that project. Try again?"
         await websocket.send_json({"type": "error", "message": msg})
         await send_tts(websocket, msg)
         return
 
-    # Open interactive claude (no -p) in the project directory
+    # Open interactive claude in the project directory
     session = await claude_manager.open_project(command.project["path"])
 
-    msg = f"Opened Claude in {command.project['name']}."
+    # Auto-enable remote mode — voice users always want output capture
+    claude_manager.enable_remote(session.session_id)
+
+    msg = f"Opened Claude in {command.project['name']}. Remote control is on."
     await websocket.send_json({
         "type": "session_created",
         "session_id": session.session_id,
@@ -152,13 +160,9 @@ async def handle_open_project(websocket: WebSocket, command):
     })
     await send_tts(websocket, msg)
 
-    # If there was an explicit prompt after the project name, send it as step 2
+    # If there was an explicit prompt, run it through remote subprocess
     if command.prompt_text:
-        # Small delay to let Claude finish loading in the terminal
-        await asyncio.sleep(3)
-        sent = await claude_manager.send_prompt(session.session_id, command.prompt_text)
-        if sent:
-            await websocket.send_json({"type": "prompt_sent", "prompt": command.prompt_text})
+        await handle_remote_prompt(websocket, session, command)
 
 
 async def handle_prompt(websocket: WebSocket, command):
@@ -167,18 +171,18 @@ async def handle_prompt(websocket: WebSocket, command):
 
     if not active:
         if command.project:
-            # No session yet — open one first, then send the prompt
+            # No session yet — open one first, then send the prompt via remote
             session = await claude_manager.open_project(command.project["path"])
-            project_name = command.project["name"]
+            claude_manager.enable_remote(session.session_id)
 
             await websocket.send_json({
                 "type": "session_created",
                 "session_id": session.session_id,
-                "project": project_name,
+                "project": command.project["name"],
             })
 
-            await asyncio.sleep(3)
-            await claude_manager.send_prompt(session.session_id, command.prompt_text)
+            await handle_remote_prompt(websocket, session, command)
+            return
         else:
             msg = "No active session. Say 'Hey Claude, start working on' followed by a project name."
             await websocket.send_json({"type": "error", "message": msg})
@@ -365,9 +369,12 @@ async def handle_remote_prompt(websocket: WebSocket, session, command):
             "summary": summary,
             "files_created": remote.files_created,
             "files_modified": remote.files_modified,
+            "file_diffs": [d.to_dict() for d in remote.file_diffs],
             "commands_run": remote.commands_run,
             "duration_ms": remote.duration_ms,
             "error": remote.error,
+            "pr_url": remote.pr_url,
+            "git_pushed": remote.git_pushed,
         })
         await send_tts(websocket, summary)
 

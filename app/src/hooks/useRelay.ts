@@ -22,10 +22,32 @@ export type RelayStatus =
   | "working"
   | "playing";
 
+export interface FileDiff {
+  file_path: string;
+  action: "created" | "modified";
+  old_string?: string;
+  new_string?: string;
+  content?: string;
+}
+
+export interface RemoteResult {
+  summary: string;
+  files_created: string[];
+  files_modified: string[];
+  file_diffs: FileDiff[];
+  commands_run: string[];
+  duration_ms: number | null;
+  error: string | null;
+  pr_url: string | null;
+  git_pushed: boolean;
+}
+
 interface RelayState {
   connectionStatus: ConnectionStatus;
   relayStatus: RelayStatus;
   lastEvent: string;
+  lastResult: RemoteResult | null;
+  clearResult: () => void;
 }
 
 // ── Constants ──
@@ -67,6 +89,9 @@ export function useRelay(serverUrl: string): RelayState {
     useState<ConnectionStatus>("disconnected");
   const [relayStatus, setRelayStatus] = useState<RelayStatus>("listening");
   const [lastEvent, setLastEvent] = useState("Waiting for connection...");
+  const [lastResult, setLastResult] = useState<RemoteResult | null>(null);
+
+  const clearResult = useCallback(() => setLastResult(null), []);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -167,11 +192,22 @@ export function useRelay(serverUrl: string): RelayState {
         break;
       case "remote_progress":
         break; // TTS follows
-      case "remote_result":
-        setLastEvent(
-          ((data.summary as string) || "Done.").slice(0, 100)
-        );
+      case "remote_result": {
+        const summary = (data.summary as string) || "Done.";
+        setLastEvent(summary.slice(0, 100));
+        setLastResult({
+          summary,
+          files_created: (data.files_created as string[]) || [],
+          files_modified: (data.files_modified as string[]) || [],
+          file_diffs: (data.file_diffs as FileDiff[]) || [],
+          commands_run: (data.commands_run as string[]) || [],
+          duration_ms: (data.duration_ms as number) ?? null,
+          error: (data.error as string) ?? null,
+          pr_url: (data.pr_url as string) ?? null,
+          git_pushed: (data.git_pushed as boolean) || false,
+        });
         break;
+      }
       case "tts_audio": {
         const audio = data.audio as string;
         if (audio) {
@@ -427,5 +463,5 @@ export function useRelay(serverUrl: string): RelayState {
     };
   }, [serverUrl]);
 
-  return { connectionStatus, relayStatus, lastEvent };
+  return { connectionStatus, relayStatus, lastEvent, lastResult, clearResult };
 }
